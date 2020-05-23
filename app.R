@@ -7,8 +7,8 @@
 # https://github.com/rstudio/shiny-examples/tree/master/063-superzip-example
 
 # update data with automated script
-source("jhu_data_full.R") # run locally to update numbers, but not live on Rstudio server (to avoid possible errors on auto-updates)
-source("ny_data_us.R") # run locally to update numbers, but not live on Rstudio server (to avoid possible errors on auto-updates)
+#source("jhu_data_full.R") # run locally to update numbers, but not live on Rstudio server (to avoid possible errors on auto-updates)
+#source("ny_data_us.R") # run locally to update numbers, but not live on Rstudio server (to avoid possible errors on auto-updates)
 
 # load required packages
 if(!require(magrittr)) install.packages("magrittr", repos = "http://cran.us.r-project.org")
@@ -34,6 +34,7 @@ covid_other_col = "#662506"
 sars_col = "#045a8d"
 h1n1_col = "#4d004b"
 ebola_col = "#016c59"
+rhino_col = "#045a8d"
 
 # import data
 cv_cases = read.csv("input_data/coronavirus.csv")
@@ -44,6 +45,9 @@ h1n1_cases = read.csv("input_data/h1n1.csv")
 worldcountry = geojson_read("input_data/50m.geojson", what = "sp")
 country_geoms = read.csv("input_data/country_geoms.csv")
 cv_states = read.csv("input_data/coronavirus_states.csv")
+rhino_cases = read.csv("input_data/rhino.csv")
+
+
 
 
 
@@ -199,11 +203,11 @@ comparison_plot = function(epi_comp, comparison) {
   
   p1 <- ggplot(epi_comp, aes(x = outbreak, y = outcome, fill=outbreak, text = paste0(outbreak, ": ",outcome))) + geom_bar(alpha = 0.8, stat="identity") +
     ylab("N") + xlab("") + theme_bw() + 
-    scale_fill_manual(values=c("2019-COVID"=covid_col, "2003-SARS"=sars_col, "2014-Ebola"=ebola_col,"2009-H1N1 (swine flu)"=h1n1_col)) +
+    scale_fill_manual(values=c("2019-COVID"=covid_col, "2003-SARS"=sars_col, "2014-Ebola"=ebola_col,"2009-H1N1 (swine flu)"=h1n1_col, "RHINO"=rhino_col)) +
     theme(legend.position = "")
   
   if(comparison == "cfr") { p1 = p1 + ylab("%") }
-  if(comparison == "deaths") { p1 = p1 + scale_y_continuous(labels = function(l) {trans = l / 1000; paste0(trans, "K")}) }
+  if(comparison == "Birth") { p1 = p1 + scale_y_continuous(labels = function(l) {trans = l / 1000; paste0(trans, "K")}) }
   if(comparison == "cases") { p1 = p1 + scale_y_continuous(trans='log10', limits = c(1,1e8), breaks=c(1,1000,1e6,1e9), labels = function(l) {trans = l / 1000; paste0(trans, "K")}) }
   ggplotly(p1 + coord_flip(), tooltip = c("text")) %>% layout(showlegend = FALSE)
 }
@@ -236,8 +240,8 @@ cv_cases$per100k = as.numeric(format(round(cv_cases$cases/(cv_cases$population/1
 cv_cases$newper100k = as.numeric(format(round(cv_cases$new_cases/(cv_cases$population/100000),1),nsmall=1))
 cv_cases$activeper100k = as.numeric(format(round(cv_cases$active_cases/(cv_cases$population/100000),1),nsmall=1))
 cv_cases$million_pop = as.numeric(cv_cases$population>1e6)
-cv_cases$deathsper100k = as.numeric(format(round(cv_cases$deaths/(cv_cases$population/100000),1),nsmall=1))
-cv_cases$newdeathsper100k = as.numeric(format(round(cv_cases$new_deaths/(cv_cases$population/100000),1),nsmall=1))
+cv_cases$Birthper100k = as.numeric(format(round(cv_cases$Birth/(cv_cases$population/100000),1),nsmall=1))
+cv_cases$newBirthper100k = as.numeric(format(round(cv_cases$new_Birth/(cv_cases$population/100000),1),nsmall=1))
 
 # add variable for days since 100th case and 10th death
 cv_cases$days_since_case100 = cv_cases$days_since_death10 = 0
@@ -245,7 +249,7 @@ for (i in 1:length(unique(cv_cases$country))) {
   country_name = as.character(unique(cv_cases$country))[i]
   country_db = subset(cv_cases, country==country_name)
   country_db$days_since_case100[country_db$cases>=100] = 0:(sum(country_db$cases>=100)-1)
-  country_db$days_since_death10[country_db$deaths>=10] = 0:(sum(country_db$deaths>=10)-1)
+  country_db$days_since_death10[country_db$Birth>=10] = 0:(sum(country_db$Birth>=10)-1)
   cv_cases$days_since_case100[cv_cases$country==country_name] = country_db$days_since_case100
   cv_cases$days_since_death10[cv_cases$country==country_name] = country_db$days_since_death10
 }
@@ -255,7 +259,7 @@ cv_today = subset(cv_cases, date==current_date)
 current_case_count = sum(cv_today$cases)
 current_case_count_China = sum(cv_today$cases[cv_today$country=="Mainland China"])
 current_case_count_other = sum(cv_today$cases[cv_today$country!="Mainland China"])
-current_death_count = sum(cv_today$deaths)
+current_death_count = sum(cv_today$Birth)
 
 # create subset of state data for today's data
 if (any(grepl("/", cv_states$date))) { 
@@ -267,14 +271,14 @@ cv_states_today = subset(cv_states, date==max(cv_states$date))
 cv_today_reduced = subset(cv_today, cases>=1000)
 
 # write current day's data
-write.csv(cv_today %>% select(c(country, date, update, cases, new_cases, deaths, new_deaths,
+write.csv(cv_today %>% select(c(country, date, update, cases, new_cases, Birth, new_Birth,
                                 recovered, new_recovered, active_cases, 
                                 per100k, newper100k, activeper100k,
-                                deathsper100k, newdeathsper100k,
+                                Birthper100k, newBirthper100k,
                                 days_since_case100, days_since_death10)), "input_data/coronavirus_today.csv")
 
 # aggregate at continent level
-cv_cases_continent = subset(cv_cases, !is.na(continent_level)) %>% select(c(cases, new_cases, deaths, new_deaths, date, continent_level)) %>% group_by(continent_level, date) %>% summarise_each(funs(sum)) %>% data.frame()
+cv_cases_continent = subset(cv_cases, !is.na(continent_level)) %>% select(c(cases, new_cases, Birth, new_Birth, date, continent_level)) %>% group_by(continent_level, date) %>% summarise_each(funs(sum)) %>% data.frame()
 
 # add variable for days since 100th case and 10th death
 cv_cases_continent$days_since_case100 = cv_cases_continent$days_since_death10 = 0
@@ -283,7 +287,7 @@ for (i in 1:length(unique(cv_cases_continent$continent))) {
   continent_name = as.character(unique(cv_cases_continent$continent))[i]
   continent_db = subset(cv_cases_continent, continent==continent_name)
   continent_db$days_since_case100[continent_db$cases>=100] = 0:(sum(continent_db$cases>=100)-1)
-  continent_db$days_since_death10[continent_db$deaths>=10] = 0:(sum(continent_db$deaths>=10)-1)
+  continent_db$days_since_death10[continent_db$Birth>=10] = 0:(sum(continent_db$Birth>=10)-1)
   cv_cases_continent$days_since_case100[cv_cases_continent$continent==continent_name] = continent_db$days_since_case100
   cv_cases_continent$days_since_death10[cv_cases_continent$continent==continent_name] = continent_db$days_since_death10
 }
@@ -300,20 +304,20 @@ cv_cases_continent$pop[cv_cases_continent$continent=="South America"] = 4.2e8
 # add normalised counts
 cv_cases_continent$per100k =  as.numeric(format(round(cv_cases_continent$cases/(cv_cases_continent$pop/100000),1),nsmall=1))
 cv_cases_continent$newper100k =  as.numeric(format(round(cv_cases_continent$new_cases/(cv_cases_continent$pop/100000),1),nsmall=1))
-cv_cases_continent$deathsper100k =  as.numeric(format(round(cv_cases_continent$deaths/(cv_cases_continent$pop/100000),1),nsmall=1))
-cv_cases_continent$newdeathsper100k =  as.numeric(format(round(cv_cases_continent$new_deaths/(cv_cases_continent$pop/100000),1),nsmall=1))
+cv_cases_continent$Birthper100k =  as.numeric(format(round(cv_cases_continent$Birth/(cv_cases_continent$pop/100000),1),nsmall=1))
+cv_cases_continent$newBirthper100k =  as.numeric(format(round(cv_cases_continent$new_Birth/(cv_cases_continent$pop/100000),1),nsmall=1))
 write.csv(cv_cases_continent, "input_data/coronavirus_continent.csv")
 
 # aggregate at global level
-cv_cases_global = cv_cases %>% select(c(cases, new_cases, deaths, new_deaths, date, global_level)) %>% group_by(global_level, date) %>% summarise_each(funs(sum)) %>% data.frame()
+cv_cases_global = cv_cases %>% select(c(cases, new_cases, Birth, new_Birth, date, global_level)) %>% group_by(global_level, date) %>% summarise_each(funs(sum)) %>% data.frame()
 cv_cases_global$days_since_case100 = cv_cases_global$days_since_death10 = 0:(nrow(cv_cases_global)-1)
 
 # add normalised counts
 cv_cases_global$pop = 7.6e9
 cv_cases_global$per100k =  as.numeric(format(round(cv_cases_global$cases/(cv_cases_global$pop/100000),1),nsmall=1))
 cv_cases_global$newper100k =  as.numeric(format(round(cv_cases_global$new_cases/(cv_cases_global$pop/100000),1),nsmall=1))
-cv_cases_global$deathsper100k =  as.numeric(format(round(cv_cases_global$deaths/(cv_cases_global$pop/100000),1),nsmall=1))
-cv_cases_global$newdeathsper100k =  as.numeric(format(round(cv_cases_global$new_deaths/(cv_cases_global$pop/100000),1),nsmall=1))
+cv_cases_global$Birthper100k =  as.numeric(format(round(cv_cases_global$Birth/(cv_cases_global$pop/100000),1),nsmall=1))
+cv_cases_global$newBirthper100k =  as.numeric(format(round(cv_cases_global$new_Birth/(cv_cases_global$pop/100000),1),nsmall=1))
 write.csv(cv_cases_global, "input_data/coronavirus_global.csv")
 
 # select large countries for mapping polygons
@@ -331,13 +335,13 @@ basemap = leaflet(plot_map) %>%
   addTiles() %>% 
   addLayersControl(
     position = "bottomright",
-    overlayGroups = c("2019-COVID (cumulative)", "2019-COVID (active)", "2019-COVID (new)", "2003-SARS", "2009-H1N1 (swine flu)", "2014-Ebola"),
+    overlayGroups = c("2019-COVID (cumulative)", "2019-COVID (active)", "2019-COVID (new)", "2003-SARS", "2009-H1N1 (swine flu)", "2014-Ebola", "RHINO"),
     options = layersControlOptions(collapsed = FALSE)) %>% 
-  hideGroup(c("2019-COVID (active)", "2019-COVID (new)", "2003-SARS", "2009-H1N1 (swine flu)", "2014-Ebola"))  %>%
+  hideGroup(c("2019-COVID (cumulative)","2019-COVID (active)", "2019-COVID (new)", "2003-SARS", "2009-H1N1 (swine flu)", "2014-Ebola", "RHINO"))  %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   fitBounds(~-100,-50,~80,80) %>%
-  addLegend("bottomright", pal = cv_pal, values = ~cv_large_countries$deathsper100k,
-            title = "<small>Deaths per 100,000</small>") #%>%
+  addLegend("bottomright", pal = cv_pal, values = ~cv_large_countries$Birthper100k,
+            title = "<small>Birth per 100,000</small>") #%>%
 #fitBounds(0,-25,90,65) # alternative coordinates for closer zoom
 
 # sum cv case counts by date
@@ -392,42 +396,49 @@ sars_basemap = leaflet(sars_plot_map) %>%
   addTiles() %>% 
   addLayersControl(
     position = "bottomright",
-    overlayGroups = c("2003-SARS (cumulative)", "2019-COVID", "2009-H1N1 (swine flu)", "2014-Ebola"),
+    overlayGroups = c("2003-SARS (cumulative)", "2019-COVID", "2009-H1N1 (swine flu)", "2014-Ebola", "RHINO"),
     options = layersControlOptions(collapsed = FALSE)) %>% 
   hideGroup(c("2019-COVID", "2009-H1N1 (swine flu)", "2014-Ebola"))  %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   fitBounds(~-100,-50,~80,80) %>%
   
   addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = 0.4, fillColor = ~sars_pal(sars_large_countries$per100k), group = "2003-SARS (cumulative)",
-              label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Deaths: %d<br/>Cases per 100,000: %g", sars_large_countries$country, sars_large_countries$cases, sars_large_countries$deaths, sars_large_countries$per100k) %>% lapply(htmltools::HTML),
+              label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Birth: %d<br/>Cases per 100,000: %g", sars_large_countries$country, sars_large_countries$cases, sars_large_countries$Birth, sars_large_countries$per100k) %>% lapply(htmltools::HTML),
               labelOptions = labelOptions(
                 style = list("font-weight" = "normal", padding = "3px 8px", "color" = sars_col),
                 textsize = "15px", direction = "auto")) %>%
   
   addCircleMarkers(data = sars_final, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4), 
              fillOpacity = 0.2, color = sars_col, group = "2003-SARS (cumulative)",
-             label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Deaths: %d<br/>Cases per 100,000: %g", sars_final$country, sars_final$cases, sars_final$deaths, sars_final$per100k) %>% lapply(htmltools::HTML),
+             label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Birth: %d<br/>Cases per 100,000: %g", sars_final$country, sars_final$cases, sars_final$Birth, sars_final$per100k) %>% lapply(htmltools::HTML),
              labelOptions = labelOptions(
                style = list("font-weight" = "normal", padding = "3px 8px", "color" = sars_col),
                textsize = "15px", direction = "auto")) %>%
   
   addCircleMarkers(data = cv_today, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/5),
              fillOpacity = 0.2, color = covid_col, group = "2019-COVID",
-             label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Deaths: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", cv_today$country, cv_today$cases, cv_today$deaths, cv_today$recovered, cv_today$per100k) %>% lapply(htmltools::HTML),
+             label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Birth: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", cv_today$country, cv_today$cases, cv_today$Birth, cv_today$recovered, cv_today$per100k) %>% lapply(htmltools::HTML),
              labelOptions = labelOptions(
                style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                textsize = "15px", direction = "auto"))  %>%
   
-  addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_deaths)^(1/4),
+  addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4),
              fillOpacity = 0.2, color = h1n1_col, group = "2009-H1N1 (swine flu)",
-             label = sprintf("<strong>%s</strong><br/>H1N1 deaths (confirmed): %g<br/>H1N1 deaths (estimated): %g", h1n1_cases$region, h1n1_cases$deaths, h1n1_cases$projected_deaths) %>% lapply(htmltools::HTML),
+             label = sprintf("<strong>%s</strong><br/>H1N1 Birth (confirmed): %g<br/>H1N1 Birth (estimated): %g", h1n1_cases$region, h1n1_cases$Birth, h1n1_cases$projected_Birth) %>% lapply(htmltools::HTML),
              labelOptions = labelOptions(
                style = list("font-weight" = "normal", padding = "3px 8px", "color" = h1n1_col),
                textsize = "15px", direction = "auto")) %>%
   
+   addCircleMarkers(data = rhino_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4),
+                    fillOpacity = 0.2, color = rhino_col, group = "RHINO (birth)",
+                    label = sprintf("<strong>%s</strong><br/>RHINO birth (confirmed): %g<br/>RHINO birth (estimated): %g", rhino_cases$region, rhino_cases$Birth, rhino_cases$projected_Birth) %>% lapply(htmltools::HTML),
+                    labelOptions = labelOptions(
+                      style = list("font-weight" = "normal", padding = "3px 8px", "color" = rhino_col),
+                      textsize = "15px", direction = "auto")) %>%
+  
   addCircleMarkers(data = ebola_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4),
              fillOpacity = 0.2, color = ebola_col, group = "2014-Ebola",
-             label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Deaths: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$deaths) %>% lapply(htmltools::HTML),
+             label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Birth: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$Birth) %>% lapply(htmltools::HTML),
              labelOptions = labelOptions(
                style = list("font-weight" = "normal", padding = "3px 8px", "color" = ebola_col),
                textsize = "15px", direction = "auto")) 
@@ -455,9 +466,9 @@ sars_aggregated$new[sars_aggregated$new<0] = 0
 epi_comp = as.data.frame(data.table::fread("input_data/epi_comp.csv"))
 epi_comp$outbreak = factor(epi_comp$outbreak, levels = epi_comp$outbreak)
 epi_comp$cases[1] = current_case_count
-epi_comp$deaths[1] = current_death_count
+epi_comp$Birth[1] = current_death_count
 epi_comp$countries[1] = nrow(subset(cv_today, country!="Diamond Princess Cruise Ship"))
-epi_comp$cfr[1] = round(epi_comp$deaths[1]/epi_comp$cases[1]*100,1)
+epi_comp$cfr[1] = round(epi_comp$Birth[1]/epi_comp$cases[1]*100,1)
 epi_comp$cfr = round(epi_comp$cfr,2)
 
 
@@ -468,27 +479,27 @@ epi_comp$cfr = round(epi_comp$cfr,2)
 ui <- bootstrapPage(
   tags$head(includeHTML("gtag.html")),
   navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,
-             "COVID-19 tracker", id="nav",
+             "RHINO/Buphagus tracker", id="nav",
              
-             tabPanel("COVID-19 mapper",
+             tabPanel("RHINO/Buphagus",
                       div(class="outer",
                           tags$head(includeCSS("styles.css")),
                           leafletOutput("mymap", width="100%", height="100%"),
                           
                           absolutePanel(id = "controls", class = "panel panel-default",
-                                        top = 75, left = 55, width = 250, fixed=TRUE,
+                                        top = 150, left = 55, width = 250, fixed=TRUE,
                                         draggable = TRUE, height = "auto",
                                         
-                                        span(tags$i(h6("Reported cases are subject to significant variation in testing policy and capacity between countries.")), style="color:#045a8d"),
-                                        h3(textOutput("reactive_case_count"), align = "right"),
-                                        h4(textOutput("reactive_death_count"), align = "right"),
-                                        span(h4(textOutput("reactive_recovered_count"), align = "right"), style="color:#006d2c"),
-                                        span(h4(textOutput("reactive_active_count"), align = "right"), style="color:#cc4c02"),
-                                        h6(textOutput("clean_date_reactive"), align = "right"),
-                                        h6(textOutput("reactive_country_count"), align = "right"),
+                                        span(tags$i(h6("Reported birth of rhino and Buphagus between countries.")), style="color:#045a8d"),
+                                        #h3(textOutput("reactive_case_count"), align = "right"),
+                                        #h4(textOutput("reactive_death_count"), align = "right"),
+                                        #span(h4(textOutput("reactive_recovered_count"), align = "right"), style="color:#006d2c"),
+                                        #span(h4(textOutput("reactive_active_count"), align = "right"), style="color:#cc4c02"),
+                                        #h6(textOutput("clean_date_reactive"), align = "right"),
+                                        #h6(textOutput("reactive_country_count"), align = "right"),
                                         #tags$i(h6("Updated once daily. For more regular updates, refer to: ", tags$a(href="https://gisanddata.maps.arcgis.com/apps/opsdashboard/index.html#/bda7594740fd40299423467b48e9ecf6", "Johns Hopkins COVID-19 dashboard."))),
-                                        plotOutput("epi_curve", height="130px", width="100%"),
-                                        plotOutput("cumulative_plot", height="130px", width="100%"),
+                                        #plotOutput("epi_curve", height="130px", width="100%"),
+                                        #plotOutput("cumulative_plot", height="130px", width="100%"),
                                         
                                         sliderInput("plot_date",
                                                     label = h5("Select mapping date"),
@@ -530,8 +541,8 @@ ui <- bootstrapPage(
                                       multiple = TRUE), 
                           
                           pickerInput("outcome_select", "Outcome:",   
-                                      choices = c("Deaths per 100,000", "Cases per 100,000", "Cases (total)", "Deaths (total)"), 
-                                      selected = c("Deaths per 100,000"),
+                                      choices = c("Birth per 100,000", "Cases per 100,000", "Cases (total)", "Birth (total)"), 
+                                      selected = c("Birth per 100,000"),
                                       multiple = FALSE),
                           
                           pickerInput("start_date", "Plotting start date:",   
@@ -560,113 +571,113 @@ ui <- bootstrapPage(
                       )
              ),
              
-             tabPanel("SARS mapper",
-                      div(class="outer",
-                          tags$head(includeCSS("styles.css")),
-                          leafletOutput("sars_map", width="100%", height="100%"),
-                          
-                          absolutePanel(id = "controls", class = "panel panel-default",
-                                        top = 75, left = 55, width = 250, fixed=TRUE,
-                                        draggable = TRUE, height = "auto",
-                                        
-                                        h3(textOutput("sars_reactive_case_count"), align = "right"),
-                                        h4(textOutput("sars_reactive_death_count"), align = "right"),
-                                        h6(textOutput("sars_clean_date_reactive"), align = "right"),
-                                        h6(textOutput("sars_reactive_country_count"), align = "right"),
-                                        plotOutput("sars_epi_curve", height="130px", width="100%"),
-                                        plotOutput("sars_cumulative_plot", height="130px", width="100%"),
-                                        span(("The final count appears to decrease as several cases initially classified as SARS were later re-assigned."),align = "left", style = "font-size:80%"),#tags$br(),
-                                        span(("Circles show confirmed cases for COVID, SARS, and Ebola, and estimated deaths for H1N1."),align = "left", style = "font-size:80%"),
-                                        
-                                        sliderTextInput("sars_plot_date",
-                                                        label = h5("Select mapping date"),
-                                                        choices = format(unique(sars_cases$date), "%d %b %y"),
-                                                        selected = format(sars_max_date, "%d %b %y"),
-                                                        grid = TRUE,
-                                                        animate=animationOptions(interval = 3000, loop = FALSE))
-                          ),
-                          
-                          absolutePanel(id = "logo", class = "card", bottom = 15, left = 60, width = 80, fixed=TRUE, draggable = FALSE, height = "auto",
-                                        tags$a(href='https://www.lshtm.ac.uk', tags$img(src='lshtm_dark.png',height='40',width='80'))),
-                          
-                          absolutePanel(id = "logo", class = "card", bottom = 15, left = 20, width = 30, fixed=TRUE, draggable = FALSE, height = "auto",
-                                        actionButton("twitter_share", label = "", icon = icon("twitter"),style='padding:5px',
-                                                     onclick = sprintf("window.open('%s')", 
-                                                                       "https://twitter.com/intent/tweet?text=%20@LSHTM_Vaccines%20outbreak%20mapper&url=https://bit.ly/2uBvnds&hashtags=coronavirus")))
-                      )
-             ),
+             # tabPanel("BIRTH mapper",
+             #          div(class="outer",
+             #              tags$head(includeCSS("styles.css")),
+             #              leafletOutput("sars_map", width="100%", height="100%"),
+             #              
+             #              absolutePanel(id = "controls", class = "panel panel-default",
+             #                            top = 75, left = 55, width = 250, fixed=TRUE,
+             #                            draggable = TRUE, height = "auto",
+             #                            
+             #                            h3(textOutput("sars_reactive_case_count"), align = "right"),
+             #                            h4(textOutput("sars_reactive_death_count"), align = "right"),
+             #                            h6(textOutput("sars_clean_date_reactive"), align = "right"),
+             #                            h6(textOutput("sars_reactive_country_count"), align = "right"),
+             #                            plotOutput("sars_epi_curve", height="130px", width="100%"),
+             #                            plotOutput("sars_cumulative_plot", height="130px", width="100%"),
+             #                            span(("The final count appears to decrease as several cases initially classified as SARS were later re-assigned."),align = "left", style = "font-size:80%"),#tags$br(),
+             #                            span(("Circles show confirmed cases for COVID, SARS, and Ebola, and estimated Birth for H1N1."),align = "left", style = "font-size:80%"),
+             #                            
+             #                            sliderTextInput("sars_plot_date",
+             #                                            label = h5("Select mapping date"),
+             #                                            choices = format(unique(sars_cases$date), "%d %b %y"),
+             #                                            selected = format(sars_max_date, "%d %b %y"),
+             #                                            grid = TRUE,
+             #                                            animate=animationOptions(interval = 3000, loop = FALSE))
+             #              ),
+             #              
+             #              absolutePanel(id = "logo", class = "card", bottom = 15, left = 60, width = 80, fixed=TRUE, draggable = FALSE, height = "auto",
+             #                            tags$a(href='https://www.lshtm.ac.uk', tags$img(src='lshtm_dark.png',height='40',width='80'))),
+             #              
+             #              absolutePanel(id = "logo", class = "card", bottom = 15, left = 20, width = 30, fixed=TRUE, draggable = FALSE, height = "auto",
+             #                            actionButton("twitter_share", label = "", icon = icon("twitter"),style='padding:5px',
+             #                                         onclick = sprintf("window.open('%s')", 
+             #                                                           "https://twitter.com/intent/tweet?text=%20@LSHTM_Vaccines%20outbreak%20mapper&url=https://bit.ly/2uBvnds&hashtags=coronavirus")))
+             #          )
+             # ),
+             # 
+             # tabPanel("Outbreak comparisons",
+             #          
+             #          sidebarLayout(
+             #            sidebarPanel(
+             #              radioButtons("comparison_metric", h3("Select comparison:"),
+             #                           c("Cases" = "cases",
+             #                             "Birth" = "Birth",
+             #                             "Countries/regions affected" = "countries",
+             #                             "Case fatality rate" = "cfr")),
+             #              textOutput("epi_notes_1"),
+             #              textOutput("epi_notes_2"),
+             #              textOutput("epi_notes_3")
+             #            ),
+             #            
+             #            mainPanel(plotlyOutput("comparison_plot"), width = 6)
+             #          )
+             # ),
+             # 
+             # tabPanel("Data",
+             #          numericInput("maxrows", "Rows to show", 25),
+             #          verbatimTextOutput("rawtable"),
+             #          downloadButton("downloadCsv", "Download as CSV"),tags$br(),tags$br(),
+             #          "Adapted from timeline data published by ", tags$a(href="https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series", 
+             #                                                             "Johns Hopkins Center for Systems Science and Engineering.")
+             # ),
              
-             tabPanel("Outbreak comparisons",
-                      
-                      sidebarLayout(
-                        sidebarPanel(
-                          radioButtons("comparison_metric", h3("Select comparison:"),
-                                       c("Cases" = "cases",
-                                         "Deaths" = "deaths",
-                                         "Countries/regions affected" = "countries",
-                                         "Case fatality rate" = "cfr")),
-                          textOutput("epi_notes_1"),
-                          textOutput("epi_notes_2"),
-                          textOutput("epi_notes_3")
-                        ),
-                        
-                        mainPanel(plotlyOutput("comparison_plot"), width = 6)
-                      )
-             ),
-             
-             tabPanel("Data",
-                      numericInput("maxrows", "Rows to show", 25),
-                      verbatimTextOutput("rawtable"),
-                      downloadButton("downloadCsv", "Download as CSV"),tags$br(),tags$br(),
-                      "Adapted from timeline data published by ", tags$a(href="https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series", 
-                                                                         "Johns Hopkins Center for Systems Science and Engineering.")
-             ),
-             
-             tabPanel("About this site",
-                      tags$div(
-                        tags$h4("Last update"), 
-                        h6(paste0(update)),
-                        "This site is updated once daily. At this time of rapid escalation of the COVID-19 pandemic, the following resources offer the latest numbers of known cases:",tags$br(),
-                        tags$a(href="https://experience.arcgis.com/experience/685d0ace521648f8a5beeeee1b9125cd", "WHO COVID-19 dashboard"),tags$br(),
-                        tags$a(href="https://gisanddata.maps.arcgis.com/apps/opsdashboard/index.html#/bda7594740fd40299423467b48e9ecf6", "Johns Hopkins University COVID-19 dashboard"),tags$br(),
-                        "The aim of this site is to complement the above resources by providing several interactive features not currently available elsewhere, including the timeline function, 
-                        the ability to overlay past outbreaks, and an emphasis on normalised counts (per 100,000 individuals).",tags$br(),
-                        tags$br(),tags$h4("Background"), 
-                        "In December 2019, cases of severe respiratory illness began to be reported across the city of Wuhan in China. 
-                        These were caused by a new type of coronavirus, and the disease is now commonly referred to as COVID-19.
-                        The number of COVID-19 cases started to escalate more quickly in mid-January and the virus soon spread beyond China's borders. 
-                        This story has been rapidly evolving ever since, and each day we are faced by worrying headlines regarding the current state of the outbreak.",
-                        tags$br(),tags$br(),
-                        "In isolation, these headlines can be hard to interpret. 
-                        How fast is the virus spreading? Are efforts to control the disease working? How does the situation compare with previous epidemics?
-                        This site is updated daily based on data published by Johns Hopkins University. 
-                        By looking beyond the headlines, we hope it is possible to get a deeper understanding of this unfolding pandemic.",
-                        tags$br(),tags$br(),
-                        "An article discussing this site was published in ",tags$a(href="https://theconversation.com/coronavirus-outbreak-a-new-mapping-tool-that-lets-you-scroll-through-timeline-131422", "The Conversation. "),
-                        "The map was also featured on the BBC World Service program",tags$a(href="https://www.bbc.co.uk/programmes/w3csym33", "Science in Action."),
-                        tags$br(),tags$br(),tags$h4("Code"),
-                        "Code and input data used to generate this Shiny mapping tool are available on ",tags$a(href="https://github.com/eparker12/nCoV_tracker", "Github."),
-                        tags$br(),tags$br(),tags$h4("Sources"),
-                        tags$b("2019-COVID cases: "), tags$a(href="https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series", "Johns Hopkins Center for Systems Science and Engineering github page,")," with additional information from the ",tags$a(href="https://www.who.int/emergencies/diseases/novel-coronavirus-2019/situation-reports", "WHO's COVID-19 situation reports."),
-                        " In previous versions of this site (up to 17th March 2020), updates were based solely on the WHO's situation reports.",tags$br(),
-                        tags$b("US state-level case data: "), tags$a(href="https://github.com/nytimes/covid-19-data", "New York Times github page,"),
-                        tags$b("2003-SARS cases: "), tags$a(href="https://www.who.int/csr/sars/country/en/", "WHO situation reports"),tags$br(),
-                        tags$b("2009-H1N1 confirmed deaths: "), tags$a(href="https://www.who.int/csr/disease/swineflu/updates/en/", "WHO situation reports"),tags$br(),
-                        tags$b("2009-H1N1 projected deaths: "), "Model estimates from ", tags$a(href="https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1001558", "GLaMOR Project"),tags$br(),
-                        tags$b("2009-H1N1 cases: "), tags$a(href="https://www.cdc.gov/flu/pandemic-resources/2009-h1n1-pandemic.html", "CDC"),tags$br(),
-                        tags$b("2009-H1N1 case fatality rate: "), "a systematic review by ", tags$a(href="https://www.ncbi.nlm.nih.gov/pubmed/24045719", "Wong et al (2009)"), "identified 
-                        substantial variation in case fatality rate estimates for the H1N1 pandemic. However, most were in the range of 10 to 100 per 100,000 symptomatic cases (0.01 to 0.1%).
-                        The upper limit of this range is used for illustrative purposes in the Outbreak comarisons tab.",tags$br(),
-                        tags$b("2014-Ebola cases: "), tags$a(href="https://www.cdc.gov/flu/pandemic-resources/2009-h1n1-pandemic.html", "CDC"),tags$br(),
-                        tags$b("Country mapping coordinates: "), tags$a(href="https://github.com/martynafford/natural-earth-geojson", "Martyn Afford's Github repository"),tags$br(),
-                        tags$br(),tags$br(),tags$h4("Authors"),
-                        "Dr Edward Parker, The Vaccine Centre, London School of Hygiene & Tropical Medicine",tags$br(),
-                        "Quentin Leclerc, Department of Infectious Disease Epidemiology, London School of Hygiene & Tropical Medicine",tags$br(),
-                        tags$br(),tags$br(),tags$h4("Contact"),
-                        "edward.parker@lshtm.ac.uk",tags$br(),tags$br(),
-                        tags$img(src = "vac_dark.png", width = "150px", height = "75px"), tags$img(src = "lshtm_dark.png", width = "150px", height = "75px")
-                      )
-             )
+             # tabPanel("About this site",
+             #          tags$div(
+             #            tags$h4("Last update"), 
+             #            h6(paste0(update)),
+             #            "This site is updated once daily. At this time of rapid escalation of the COVID-19 pandemic, the following resources offer the latest numbers of known cases:",tags$br(),
+             #            tags$a(href="https://experience.arcgis.com/experience/685d0ace521648f8a5beeeee1b9125cd", "WHO COVID-19 dashboard"),tags$br(),
+             #            tags$a(href="https://gisanddata.maps.arcgis.com/apps/opsdashboard/index.html#/bda7594740fd40299423467b48e9ecf6", "Johns Hopkins University COVID-19 dashboard"),tags$br(),
+             #            "The aim of this site is to complement the above resources by providing several interactive features not currently available elsewhere, including the timeline function, 
+             #            the ability to overlay past outbreaks, and an emphasis on normalised counts (per 100,000 individuals).",tags$br(),
+             #            tags$br(),tags$h4("Background"), 
+             #            "In December 2019, cases of severe respiratory illness began to be reported across the city of Wuhan in China. 
+             #            These were caused by a new type of coronavirus, and the disease is now commonly referred to as COVID-19.
+             #            The number of COVID-19 cases started to escalate more quickly in mid-January and the virus soon spread beyond China's borders. 
+             #            This story has been rapidly evolving ever since, and each day we are faced by worrying headlines regarding the current state of the outbreak.",
+             #            tags$br(),tags$br(),
+             #            "In isolation, these headlines can be hard to interpret. 
+             #            How fast is the virus spreading? Are efforts to control the disease working? How does the situation compare with previous epidemics?
+             #            This site is updated daily based on data published by Johns Hopkins University. 
+             #            By looking beyond the headlines, we hope it is possible to get a deeper understanding of this unfolding pandemic.",
+             #            tags$br(),tags$br(),
+             #            "An article discussing this site was published in ",tags$a(href="https://theconversation.com/coronavirus-outbreak-a-new-mapping-tool-that-lets-you-scroll-through-timeline-131422", "The Conversation. "),
+             #            "The map was also featured on the BBC World Service program",tags$a(href="https://www.bbc.co.uk/programmes/w3csym33", "Science in Action."),
+             #            tags$br(),tags$br(),tags$h4("Code"),
+             #            "Code and input data used to generate this Shiny mapping tool are available on ",tags$a(href="https://github.com/eparker12/nCoV_tracker", "Github."),
+             #            tags$br(),tags$br(),tags$h4("Sources"),
+             #            tags$b("2019-COVID cases: "), tags$a(href="https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series", "Johns Hopkins Center for Systems Science and Engineering github page,")," with additional information from the ",tags$a(href="https://www.who.int/emergencies/diseases/novel-coronavirus-2019/situation-reports", "WHO's COVID-19 situation reports."),
+             #            " In previous versions of this site (up to 17th March 2020), updates were based solely on the WHO's situation reports.",tags$br(),
+             #            tags$b("US state-level case data: "), tags$a(href="https://github.com/nytimes/covid-19-data", "New York Times github page,"),
+             #            tags$b("2003-SARS cases: "), tags$a(href="https://www.who.int/csr/sars/country/en/", "WHO situation reports"),tags$br(),
+             #            tags$b("2009-H1N1 confirmed Birth: "), tags$a(href="https://www.who.int/csr/disease/swineflu/updates/en/", "WHO situation reports"),tags$br(),
+             #            tags$b("2009-H1N1 projected Birth: "), "Model estimates from ", tags$a(href="https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1001558", "GLaMOR Project"),tags$br(),
+             #            tags$b("2009-H1N1 cases: "), tags$a(href="https://www.cdc.gov/flu/pandemic-resources/2009-h1n1-pandemic.html", "CDC"),tags$br(),
+             #            tags$b("2009-H1N1 case fatality rate: "), "a systematic review by ", tags$a(href="https://www.ncbi.nlm.nih.gov/pubmed/24045719", "Wong et al (2009)"), "identified 
+             #            substantial variation in case fatality rate estimates for the H1N1 pandemic. However, most were in the range of 10 to 100 per 100,000 symptomatic cases (0.01 to 0.1%).
+             #            The upper limit of this range is used for illustrative purposes in the Outbreak comarisons tab.",tags$br(),
+             #            tags$b("2014-Ebola cases: "), tags$a(href="https://www.cdc.gov/flu/pandemic-resources/2009-h1n1-pandemic.html", "CDC"),tags$br(),
+             #            tags$b("Country mapping coordinates: "), tags$a(href="https://github.com/martynafford/natural-earth-geojson", "Martyn Afford's Github repository"),tags$br(),
+             #            tags$br(),tags$br(),tags$h4("Authors"),
+             #            "Dr Edward Parker, The Vaccine Centre, London School of Hygiene & Tropical Medicine",tags$br(),
+             #            "Quentin Leclerc, Department of Infectious Disease Epidemiology, London School of Hygiene & Tropical Medicine",tags$br(),
+             #            tags$br(),tags$br(),tags$h4("Contact"),
+             #            "edward.parker@lshtm.ac.uk",tags$br(),tags$br(),
+             #            tags$img(src = "vac_dark.png", width = "150px", height = "75px"), tags$img(src = "lshtm_dark.png", width = "150px", height = "75px")
+             #          )
+             #)
              
   )          
 )
@@ -720,7 +731,7 @@ server = function(input, output, session) {
   })
   
   output$reactive_death_count <- renderText({
-    paste0(prettyNum(sum(reactive_db()$deaths), big.mark=","), " deaths")
+    paste0(prettyNum(sum(reactive_db()$Birth), big.mark=","), " Birth")
   })
   
   output$reactive_recovered_count <- renderText({
@@ -757,51 +768,58 @@ server = function(input, output, session) {
     leafletProxy("mymap") %>% 
     clearMarkers() %>%
     clearShapes() %>%
-    addPolygons(data = reactive_polygons(), stroke = FALSE, smoothFactor = 0.1, fillOpacity = 0.15, fillColor = ~cv_pal(reactive_db_large()$deathsper100k)) %>%
+    addPolygons(data = reactive_polygons(), stroke = FALSE, smoothFactor = 0.1, fillOpacity = 0.15, fillColor = ~cv_pal(reactive_db_large()$Birthper100k)) %>%
                # label = sprintf("<strong>%s", reactive_db_large()$country)) %>% #group = "2019-COVID (cumulative)",
-                #  label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed COVID cases: %g<br/>Deaths: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", reactive_db_large()$country, reactive_db_large()$cases, reactive_db_large()$deaths, reactive_db_large()$recovered, reactive_db_large()$per100k) %>% lapply(htmltools::HTML),
+                #  label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed COVID cases: %g<br/>Birth: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", reactive_db_large()$country, reactive_db_large()$cases, reactive_db_large()$Birth, reactive_db_large()$recovered, reactive_db_large()$per100k) %>% lapply(htmltools::HTML),
                 #  labelOptions = labelOptions(
                 #               style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                 #              textsize = "15px", direction = "auto") %>%
       
       addCircleMarkers(data = reactive_db_last24h(), lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(new_cases)^(1/5), 
                  fillOpacity = 0.1, color = covid_col, group = "2019-COVID (new)",
-                 label = sprintf("<strong>%s (past 24h)</strong><br/>Confirmed cases: %g<br/>Deaths: %d<br/>Recovered: %d<br/>Cases per 100,000: %g<br/>Deaths per 100,000: %g", reactive_db_last24h()$country, reactive_db_last24h()$new_cases, reactive_db_last24h()$new_deaths, reactive_db_last24h()$new_recovered, reactive_db_last24h()$newper100k, reactive_db_last24h()$newdeathsper100k) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s (past 24h)</strong><br/>Confirmed cases: %g<br/>Birth: %d<br/>Recovered: %d<br/>Cases per 100,000: %g<br/>Birth per 100,000: %g", reactive_db_last24h()$country, reactive_db_last24h()$new_cases, reactive_db_last24h()$new_Birth, reactive_db_last24h()$new_recovered, reactive_db_last24h()$newper100k, reactive_db_last24h()$newBirthper100k) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                    textsize = "15px", direction = "auto")) %>%
       
       addCircleMarkers(data = reactive_db(), lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/5), 
                  fillOpacity = 0.1, color = covid_col, group = "2019-COVID (cumulative)",
-                 label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Deaths: %d<br/>Recovered: %d<br/>Cases per 100,000: %g<br/>Deaths per 100,000: %g", reactive_db()$country, reactive_db()$cases, reactive_db()$deaths,reactive_db()$recovered, reactive_db()$per100k, reactive_db()$deathsper100k) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Birth: %d<br/>Recovered: %d<br/>Cases per 100,000: %g<br/>Birth per 100,000: %g", reactive_db()$country, reactive_db()$cases, reactive_db()$Birth,reactive_db()$recovered, reactive_db()$per100k, reactive_db()$Birthper100k) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                    textsize = "15px", direction = "auto")) %>%
 
       addCircleMarkers(data = reactive_db(), lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(active_cases)^(1/5), 
                  fillOpacity = 0.1, color = covid_col, group = "2019-COVID (active)",
-                 label = sprintf("<strong>%s (active)</strong><br/>Confirmed cases: %g<br/>Cases per 100,000: %g<br/><i><small>Excludes individuals known to have<br/>recovered (%g) or died (%g).</small></i>", reactive_db()$country, reactive_db()$active_cases, reactive_db()$activeper100k, reactive_db()$recovered, reactive_db()$deaths) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s (active)</strong><br/>Confirmed cases: %g<br/>Cases per 100,000: %g<br/><i><small>Excludes individuals known to have<br/>recovered (%g) or died (%g).</small></i>", reactive_db()$country, reactive_db()$active_cases, reactive_db()$activeper100k, reactive_db()$recovered, reactive_db()$Birth) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                    textsize = "15px", direction = "auto"))  %>%
       
       addCircleMarkers(data = sars_final, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4), 
                  fillOpacity = 0.2, color = sars_col, group = "2003-SARS",
-                 label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Deaths: %d<br/>Cases per 100,000: %g", sars_final$country, sars_final$cases, sars_final$deaths, sars_final$per100k) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Birth: %d<br/>Cases per 100,000: %g", sars_final$country, sars_final$cases, sars_final$Birth, sars_final$per100k) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = sars_col),
                    textsize = "15px", direction = "auto")) %>%
       
-      addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_deaths)^(1/4), 
+      addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4), 
                  fillOpacity = 0.2, color = h1n1_col, group = "2009-H1N1 (swine flu)",
-                 label = sprintf("<strong>%s</strong><br/>H1N1 deaths (confirmed): %g<br/>H1N1 deaths (estimated): %g", h1n1_cases$region, h1n1_cases$deaths, h1n1_cases$projected_deaths) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>H1N1 Birth (confirmed): %g<br/>H1N1 Birth (estimated): %g", h1n1_cases$region, h1n1_cases$Birth, h1n1_cases$projected_Birth) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = h1n1_col),
                    textsize = "15px", direction = "auto")) %>%
       
+      addCircleMarkers(data = rhino_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4), 
+                       fillOpacity = 0.2, color = rhino_col, group = "RHINO (Birth)",
+                       label = sprintf("<strong>%s</strong><br/>RHINO birth (confirmed): %g<br/>RHINO birth (estimated): %g", rhino_cases$region, rhino_cases$Birth, rhino_cases$projected_Birth) %>% lapply(htmltools::HTML),
+                       labelOptions = labelOptions(
+                         style = list("font-weight" = "normal", padding = "3px 8px", "color" = rhino_col),
+                         textsize = "15px", direction = "auto")) %>%
+      
       addCircleMarkers(data = ebola_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4), 
                  fillOpacity = 0.2, color = ebola_col, group = "2014-Ebola",
-                 label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Deaths: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$deaths) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Birth: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$Birth) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = ebola_col),
                    textsize = "15px", direction = "auto"))
@@ -843,7 +861,7 @@ server = function(input, output, session) {
   })
   
   output$sars_reactive_death_count <- renderText({
-    paste0(sum(sars_reactive_db()$deaths), " deaths")
+    paste0(sum(sars_reactive_db()$Birth), " Birth")
   })
   
   
@@ -860,35 +878,43 @@ server = function(input, output, session) {
       clearMarkers() %>%
       clearShapes() %>%
       addPolygons(data = sars_reactive_polygons(), stroke = FALSE, smoothFactor = 0.2, fillOpacity = 0.1, fillColor = ~sars_pal(sars_reactive_db_large()$per100k), group = "2003-SARS (cumulative)",
-                  label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Deaths: %d<br/>Cases per 100,000: %g", sars_reactive_db_large()$country, sars_reactive_db_large()$cases, sars_reactive_db_large()$deaths, sars_reactive_db_large()$per100k) %>% lapply(htmltools::HTML),
+                  label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Birth: %d<br/>Cases per 100,000: %g", sars_reactive_db_large()$country, sars_reactive_db_large()$cases, sars_reactive_db_large()$Birth, sars_reactive_db_large()$per100k) %>% lapply(htmltools::HTML),
                   labelOptions = labelOptions(
                     style = list("font-weight" = "normal", padding = "3px 8px", "color" = sars_col),
                     textsize = "15px", direction = "auto")) %>%
       
       addCircleMarkers(data = sars_reactive_db(), lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4), 
                  fillOpacity = 0.2, color = sars_col, group = "2003-SARS (cumulative)",
-                 label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Deaths: %d<br/>Cases per 100,000: %g", sars_reactive_db()$country, sars_reactive_db()$cases, sars_reactive_db()$deaths, sars_reactive_db()$per100k) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>SARS cases: %g<br/>Birth: %d<br/>Cases per 100,000: %g", sars_reactive_db()$country, sars_reactive_db()$cases, sars_reactive_db()$Birth, sars_reactive_db()$per100k) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = sars_col),
                    textsize = "15px", direction = "auto")) %>%
       
       addCircleMarkers(data = cv_today, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/5),
                  fillOpacity = 0.1, color = covid_col, group = "2019-COVID",
-                 label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Deaths: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", cv_today$country, cv_today$cases, cv_today$deaths, cv_today$recovered, cv_today$per100k) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s (cumulative)</strong><br/>Confirmed cases: %g<br/>Birth: %d<br/>Recovered: %d<br/>Cases per 100,000: %g", cv_today$country, cv_today$cases, cv_today$Birth, cv_today$recovered, cv_today$per100k) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = covid_col),
                    textsize = "15px", direction = "auto"))  %>%
       
-      addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_deaths)^(1/4),
+      addCircleMarkers(data = h1n1_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4),
                  fillOpacity = 0.2, color = h1n1_col, group = "2009-H1N1 (swine flu)",
-                 label = sprintf("<strong>%s</strong><br/>H1N1 deaths (confirmed): %g<br/>H1N1 deaths (estimated): %g", h1n1_cases$region, h1n1_cases$deaths, h1n1_cases$projected_deaths) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>H1N1 Birth (confirmed): %g<br/>H1N1 Birth (estimated): %g", h1n1_cases$region, h1n1_cases$Birth, h1n1_cases$projected_Birth) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = h1n1_col),
                    textsize = "15px", direction = "auto")) %>%
       
+      
+      addCircleMarkers(data = rhino_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(projected_Birth)^(1/4),
+                       fillOpacity = 0.2, color = rhino_col, group = "RHINO (birth)",
+                       label = sprintf("<strong>%s</strong><br/>RHINO birth (confirmed): %g<br/>RHINO birth (estimated): %g", rhino_cases$region, rhino_cases$Birth, rhino_cases$projected_Birth) %>% lapply(htmltools::HTML),
+                       labelOptions = labelOptions(
+                         style = list("font-weight" = "normal", padding = "3px 8px", "color" = rhino_col),
+                         textsize = "15px", direction = "auto")) %>%
+      
       addCircleMarkers(data = ebola_cases, lat = ~ latitude, lng = ~ longitude, weight = 1, radius = ~(cases)^(1/4),
                  fillOpacity = 0.2, color = ebola_col, group = "2014-Ebola",
-                 label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Deaths: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$deaths) %>% lapply(htmltools::HTML),
+                 label = sprintf("<strong>%s</strong><br/>Ebola cases: %g<br/>Birth: %d", ebola_cases$country, ebola_cases$cases, ebola_cases$Birth) %>% lapply(htmltools::HTML),
                  labelOptions = labelOptions(
                    style = list("font-weight" = "normal", padding = "3px 8px", "color" = ebola_col),
                    textsize = "15px", direction = "auto")) 
@@ -913,10 +939,10 @@ server = function(input, output, session) {
                                                   The 60.8 million estimated cases of H1N1 dwarf all other outbreaks of plotted on a standard linear scale.") }
   })
   
-  # add footnote for deaths
+  # add footnote for Birth
   output$epi_notes_2 <- renderText({
-    if(input$comparison_metric=="deaths") { 
-      paste0("For H1N1, the number of laboratory-confirmed deaths reported by the WHO is displayed. Subsequent modelling studies have estimated the actual number to be in the range of 123,000 to 203,000.")
+    if(input$comparison_metric=="Birth") { 
+      paste0("For H1N1, the number of laboratory-confirmed Birth reported by the WHO is displayed. Subsequent modelling studies have estimated the actual number to be in the range of 123,000 to 203,000.")
     }
   })
   
@@ -977,9 +1003,9 @@ server = function(input, output, session) {
       db$new_outcome = db$new_cases
     }
     
-    if (input$outcome_select=="Deaths (total)") { 
-      db$outcome = db$deaths 
-      db$new_outcome = db$new_deaths 
+    if (input$outcome_select=="Birth (total)") { 
+      db$outcome = db$Birth 
+      db$new_outcome = db$new_Birth 
     }
     
     if (input$outcome_select=="Cases per 100,000") { 
@@ -987,9 +1013,9 @@ server = function(input, output, session) {
       db$new_outcome = db$newper100k 
     }
     
-    if (input$outcome_select=="Deaths per 100,000") { 
-      db$outcome = db$deathsper100k 
-      db$new_outcome = db$newdeathsper100k 
+    if (input$outcome_select=="Birth per 100,000") { 
+      db$outcome = db$Birthper100k 
+      db$new_outcome = db$newBirthper100k 
     }
     
     db %>% filter(region %in% input$region_select)
@@ -1011,22 +1037,22 @@ server = function(input, output, session) {
   })
   
   # output to download data
-  output$downloadCsv <- downloadHandler(
-    filename = function() {
-      paste("COVID_data_", cv_today$date[1], ".csv", sep="")
-    },
-    content = function(file) {
-      write.csv(cv_cases %>% select(c(country, date, cases, new_cases, deaths, new_deaths,
-                                       recovered, new_recovered, active_cases, 
-                                       per100k, newper100k, activeper100k, deathsper100k, newdeathsper100k)), file)
-    }
-  )
+  # output$downloadCsv <- downloadHandler(
+  #   filename = function() {
+  #     paste("COVID_data_", cv_today$date[1], ".csv", sep="")
+  #   },
+  #   content = function(file) {
+  #     write.csv(cv_cases %>% select(c(country, date, cases, new_cases, Birth, new_Birth,
+  #                                      recovered, new_recovered, active_cases, 
+  #                                      per100k, newper100k, activeper100k, Birthper100k, newBirthper100k)), file)
+  #   }
+  # )
   
   output$rawtable <- renderPrint({
     orig <- options(width = 1000)
-    print(tail(cv_cases %>% select(c(country, date, cases, new_cases, deaths, new_deaths,
+    print(tail(cv_cases %>% select(c(country, date, cases, new_cases, Birth, new_Birth,
                                      recovered, new_recovered, active_cases, 
-                                     per100k, newper100k, activeper100k, deathsper100k, newdeathsper100k)), input$maxrows), row.names = FALSE)
+                                     per100k, newper100k, activeper100k, Birthper100k, newBirthper100k)), input$maxrows), row.names = FALSE)
     options(orig)
   })
   
