@@ -1,0 +1,6 @@
+country,date,cases,deaths,latitude,longitude,penalty
+france,01/06/2016,10675,4809,6.5,-9.5,1.3
+quebec,01/06/2016,14124,3956,8.5,-11.5,1.3
+Californie,01/06/2016,20,8,10,8,1.3
+MAroc,01/06/2016,3811,2543,11,-10,1.3
+Tunesie,01/06/2016,1,0,14,-14,1.3
